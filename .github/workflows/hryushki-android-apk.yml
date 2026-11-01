@@ -1,0 +1,47 @@
+name: Build Hryushki Accounts APK
+
+on:
+  push:
+    branches:
+      - hryushki-accounts
+    paths:
+      - 'hryushki/**'
+      - '.github/workflows/hryushki-android-apk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle -p hryushki :app:assembleDebug --stacktrace
+
+      - name: Prepare APK
+        run: |
+          mkdir -p dist
+          cp hryushki/app/build/outputs/apk/debug/app-debug.apk dist/Hryushki_Accounts_Android_1.0.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Hryushki-Accounts-Android-APK
+          path: dist/Hryushki_Accounts_Android_1.0.apk
+          if-no-files-found: error
+          retention-days: 30
