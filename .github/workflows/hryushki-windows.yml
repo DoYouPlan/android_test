@@ -13,10 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Compile Windows application and example plugin
-        shell: powershell
+        shell: pwsh
         run: ./windows-accounts/build.ps1
       - name: Verify accounting and database protection
-        shell: powershell
+        shell: pwsh
         run: |
           $exe = (Resolve-Path windows-accounts/dist/Hryushki_Accounts.exe).Path
           $p = Start-Process $exe -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow -RedirectStandardOutput tests.log -RedirectStandardError tests.err
@@ -24,7 +24,7 @@ jobs:
           Get-Content tests.err
           if ($p.ExitCode -ne 0) { throw 'Accounting tests failed' }
       - name: Verify plugin host and render all application pages
-        shell: powershell
+        shell: pwsh
         run: |
           $dir = (Resolve-Path windows-accounts).Path
           $exe = Join-Path $dir 'dist/Hryushki_Accounts.exe'
