@@ -29,7 +29,7 @@ jobs:
           $dir = (Resolve-Path windows-accounts).Path
           $exe = Join-Path $dir 'dist/Hryushki_Accounts.exe'
           $db = Join-Path $env:RUNNER_TEMP 'ui-sample.json'
-          $json = '{"version":2,"warehouses":["Дома","Зверёк Аморе"],"operations":[],"products":[],"materials":[]}'
+          $json = '{"version":2,"warehouses":["Дома","Зверёк Аморе"],"operations":[{"id":1,"date":"01.11.2026","type":"Корректировка склада","warehouse":"Дома","item":"Пример: мягкий домик","qty":8,"amount":0},{"id":2,"date":"01.11.2026","type":"Продажа","warehouse":"Дома","item":"Пример: мягкий домик","qty":2,"amount":1600,"paid":1600,"_cost":600},{"id":3,"date":"01.11.2026","type":"Расход","warehouse":"Дома","item":"Пример: упаковка","qty":0,"amount":120}],"products":[],"materials":[]}'
           [IO.File]::WriteAllText($db, $json, [Text.UTF8Encoding]::new($false))
           $package = Join-Path $dir 'dist/PluginSDK/ExampleReport.zip'
           $p = Start-Process $exe -ArgumentList @('--plugin-test',"`"$package`"") -Wait -PassThru -NoNewWindow -RedirectStandardOutput plugin-tests.log -RedirectStandardError plugin-tests.err
