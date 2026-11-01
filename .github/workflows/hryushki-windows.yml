@@ -31,7 +31,12 @@ jobs:
           $db = Join-Path $env:RUNNER_TEMP 'ui-sample.json'
           $json = '{"version":2,"warehouses":["Дома","Зверёк Аморе"],"operations":[],"products":[],"materials":[]}'
           [IO.File]::WriteAllText($db, $json, [Text.UTF8Encoding]::new($false))
-          $report = Join-Path $env:RUNNER_TEMP 'plugin-report.json'
+          $package = Join-Path $dir 'dist/PluginSDK/ExampleReport.zip'
+          $p = Start-Process $exe -ArgumentList @('--plugin-test',"`"$package`"") -Wait -PassThru -NoNewWindow -RedirectStandardOutput plugin-tests.log -RedirectStandardError plugin-tests.err
+          Get-Content plugin-tests.log
+          Get-Content plugin-tests.err
+          if ($p.ExitCode -ne 0) { throw 'Plugin lifecycle failed' }
+          $report = Join-Path $env:RUNNER_TEMP 'plugin-report.json' 
           $plugin = Join-Path $dir 'dist/PluginSDK'
           $p = Start-Process $exe -ArgumentList @('--plugin-host',"`"$plugin`"","`"$db`"","`"$report`"") -Wait -PassThru
           if ($p.ExitCode -ne 0 -or !(Test-Path $report)) { throw 'Plugin test failed' }

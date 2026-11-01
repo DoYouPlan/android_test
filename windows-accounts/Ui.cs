@@ -102,7 +102,7 @@ public class MainWindow:Form {
    f.SaveAction=()=>{if(String.IsNullOrWhiteSpace(name.Text))throw new Exception("Введите название");var db=J.Copy(store.Data);string key=material?"materials":"products";var list=J.Rows(db,key);if(list.Any(x=>J.S(x,"name")==name.Text.Trim()&&(original==null||J.S(x,"name")!=J.S(original,"name"))))throw new Exception("Название уже существует");
     if(original!=null&&J.S(original,"name")!=name.Text.Trim()&&J.Rows(db,"operations").Any(x=>J.S(x,"item")==J.S(original,"name")))throw new Exception("У товара уже есть операции. Создайте новую карточку, чтобы сохранить историю названия.");
     n["name"]=name.Text.Trim();if(material){n["unit"]=unit.Text.Trim();n["qty"]=q.Value;n["price"]=a.Value;}else{n["HomePrice"]=a.Value;n["PartnerPrice"]=b.Value;n["Cost"]=c.Value;}
-    if(original==null)list.Add(n);else list[list.FindIndex(x=>J.S(x,"name")==J.S(original,"name"))]=n;db[key]=list;Engine.ValidateChange(store.Data,db);store.Save(db);};if(f.ShowDialog(this)==DialogResult.OK)RefreshPage();
+    if(original==null)list.Add(n);else list[list.FindIndex(x=>J.S(x,"name")==J.S(original,"name"))]=n;db[key]=list;Engine.ValidateChange(store.Data,db);store.Save(db);};if(Program.UiTesting){f.Show(this);Application.DoEvents();f.Close();}else if(f.ShowDialog(this)==DialogResult.OK)RefreshPage();
   }
  });}
  void EditOperation(Dictionary<string,object> original=null,string initial=null){Try(()=>{
@@ -127,7 +127,7 @@ public class MainWindow:Form {
     else{o.Remove("fee");o.Remove("paid");o.Remove("_cost");o["counterparty"]=String.IsNullOrWhiteSpace(who.Text)?wh.Text:who.Text.Trim();}
     if((type.Text=="Покупка материалов"||type.Text=="Расход материалов")&&!J.Rows(store.Data,"materials").Any(m=>J.S(m,"name")==item.Text.Trim()))throw new Exception("Сначала добавьте материал в разделе «Материалы»");
     store.ChangeOperation(o,original==null?0:(int)J.N(original,"id"));};
-   if(f.ShowDialog(this)==DialogResult.OK)RefreshPage();
+   if(Program.UiTesting){f.Show(this);Application.DoEvents();f.Close();}else if(f.ShowDialog(this)==DialogResult.OK)RefreshPage();
   }
  });}
  void PluginsPage(){
@@ -154,7 +154,7 @@ public class MainWindow:Form {
  void ExportGrid(){Try(()=>{if(activeGrid==null)return;string path=SavePath("Таблица CSV|*.csv","hryushki_"+DateTime.Today.ToString("yyyyMMdd")+".csv");if(path==null)return;var rows=new List<string[]>();rows.Add(activeGrid.Columns.Cast<DataGridViewColumn>().Select(c=>c.HeaderText).ToArray());rows.AddRange(activeGrid.Rows.Cast<DataGridViewRow>().Select(r=>r.Cells.Cast<DataGridViewCell>().Select(c=>Convert.ToString(c.Value)).ToArray()));Csv.Write(path,rows);MessageBox.Show(this,"Таблица сохранена. Экспорт учитывает поиск и выбранный период.");});}
  static string Input(string title,string hint,string value){using(var f=new EditorDialog(title)){var t=f.TextField(hint,value);f.SaveAction=()=>{if(String.IsNullOrWhiteSpace(t.Text))throw new Exception("Введите значение");};return f.ShowDialog()==DialogResult.OK?t.Text:null;}}
  public void CaptureImage(string path){using(var bitmap=new Bitmap(Width,Height)){DrawToBitmap(bitmap,new Rectangle(0,0,Width,Height));bitmap.Save(path);}}
- public void SmokePages(){foreach(string p in navigation.Keys.ToArray()){Navigate(p);Application.DoEvents();}Navigate("Обзор");}
+ public void SmokePages(){foreach(string p in navigation.Keys.ToArray()){Navigate(p);Application.DoEvents();}EditOperation();EditCatalog(false,null);EditCatalog(true,null);Navigate("Обзор");}
 }
 public class PigLogo:Control {
  protected override void OnPaint(PaintEventArgs e){var g=e.Graphics;g.SmoothingMode=SmoothingMode.AntiAlias;using(var b=new SolidBrush(Theme.Peach)){g.FillEllipse(b,2,4,16,18);g.FillEllipse(b,27,4,16,18);g.FillEllipse(b,4,9,37,29);}using(var b=new SolidBrush(Theme.Green)){g.FillEllipse(b,13,18,4,4);g.FillEllipse(b,29,18,4,4);}using(var b=new SolidBrush(Color.FromArgb(215,169,137)))g.FillEllipse(b,18,25,12,8);}
