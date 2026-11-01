@@ -1,0 +1,48 @@
+name: Hryushki Windows 3
+on:
+  push:
+    branches: [hryushki-windows-3]
+    paths: ['windows-accounts/**', '.github/workflows/hryushki-windows.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Windows application and example plugin
+        shell: powershell
+        run: ./windows-accounts/build.ps1
+      - name: Verify accounting and database protection
+        shell: powershell
+        run: |
+          $exe = (Resolve-Path windows-accounts/dist/Hryushki_Accounts.exe).Path
+          $p = Start-Process $exe -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow -RedirectStandardOutput tests.log -RedirectStandardError tests.err
+          Get-Content tests.log
+          Get-Content tests.err
+          if ($p.ExitCode -ne 0) { throw 'Accounting tests failed' }
+      - name: Verify plugin host and render all application pages
+        shell: powershell
+        run: |
+          $dir = (Resolve-Path windows-accounts).Path
+          $exe = Join-Path $dir 'dist/Hryushki_Accounts.exe'
+          $db = Join-Path $env:RUNNER_TEMP 'ui-sample.json'
+          $json = '{"version":2,"warehouses":["Дома","Зверёк Аморе"],"operations":[],"products":[],"materials":[]}'
+          [IO.File]::WriteAllText($db, $json, [Text.UTF8Encoding]::new($false))
+          $report = Join-Path $env:RUNNER_TEMP 'plugin-report.json'
+          $plugin = Join-Path $dir 'dist/PluginSDK'
+          $p = Start-Process $exe -ArgumentList @('--plugin-host',"`"$plugin`"","`"$db`"","`"$report`"") -Wait -PassThru
+          if ($p.ExitCode -ne 0 -or !(Test-Path $report)) { throw 'Plugin test failed' }
+          $r = Get-Content $report -Raw | ConvertFrom-Json
+          if ($r.Title -ne 'Продажи по складам') { throw 'Plugin returned unexpected result' }
+          $image = Join-Path $dir 'dist/preview.png'
+          $p = Start-Process $exe -ArgumentList @('--ui-test',"`"$db`"","`"$image`"") -PassThru
+          if (!$p.WaitForExit(60000)) { $p.Kill(); throw 'GUI test timed out' }
+          if ($p.ExitCode -ne 0 -or !(Test-Path $image)) { throw 'GUI rendering failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hryushki_Accounts_3.0_Windows
+          path: windows-accounts/dist/
+          if-no-files-found: error
