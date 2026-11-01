@@ -46,6 +46,14 @@ jobs:
           $p = Start-Process $exe -ArgumentList @('--ui-test',"`"$db`"","`"$image`"") -PassThru
           if (!$p.WaitForExit(60000)) { $p.Kill(); throw 'GUI test timed out' }
           if ($p.ExitCode -ne 0 -or !(Test-Path $image)) { throw 'GUI rendering failed' }
+      - name: Build and test business plugins
+        shell: pwsh
+        run: ./windows-accounts/BusinessPlugins/build.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Hryushki_Business_Plugins_1.0
+          path: windows-accounts/BusinessPlugins/release/
+          if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
           name: Hryushki_Accounts_3.0_Windows

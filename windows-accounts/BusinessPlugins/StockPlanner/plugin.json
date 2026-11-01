@@ -1,0 +1,10 @@
+{
+  "id": "hryushki.stockplanner",
+  "name": "Что сшить и передать партнёру",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "author": "Хрюшкины подушки",
+  "description": "План пополнения по остаткам и темпу продаж. Передача из домашнего запаса и недостающее количество для пошива.",
+  "assembly": "StockPlanner.dll",
+  "entryType": "Hryushki.Extensions.StockPlannerPlugin"
+}

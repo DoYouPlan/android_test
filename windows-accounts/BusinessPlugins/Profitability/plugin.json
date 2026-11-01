@@ -1,0 +1,10 @@
+{
+  "id": "hryushki.profitability",
+  "name": "На чём зарабатываем",
+  "version": "1.0.0",
+  "apiVersion": 1,
+  "author": "Хрюшкины подушки",
+  "description": "Выручка, комиссии, себестоимость и маржа по изделиям и каналам. Отдельно показывает неполные данные.",
+  "assembly": "Profitability.dll",
+  "entryType": "Hryushki.Extensions.ProfitabilityPlugin"
+}
