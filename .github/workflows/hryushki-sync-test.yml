@@ -33,9 +33,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Compile and verify Windows
-        shell: powershell
+        shell: pwsh
         run: |
-          & syncwindows/build.ps1
+          Push-Location syncwindows
+          & ./build.ps1
+          Pop-Location
           $exe = Resolve-Path syncwindows/dist/Hryushki_Accounts.exe
           foreach ($arg in @('--self-test','--sync-test')) {
             $p = Start-Process $exe -ArgumentList $arg -Wait -PassThru
