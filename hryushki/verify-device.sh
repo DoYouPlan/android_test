@@ -12,6 +12,10 @@ run_test() {
   fi
 }
 run_test ru.hryushki.accounts.AccountingTest accounting-tests
+run_test ru.hryushki.accounts.UiCapture ui-edit-and-capture
+for n in 0 1 2 3 4 5; do
+  adb exec-out run-as "$APP" cat "files/screen-$n.png" > "dist/screen-$n.png"
+done
 run_test 'ru.hryushki.accounts.PersistenceCheck#seed' persistence-seed
 adb shell am force-stop "$APP"
 adb shell am start -W -n "$APP/ru.hryushki.accounts.MainActivity"
