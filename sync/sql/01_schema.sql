@@ -22,7 +22,7 @@ create table if not exists public.hry_sync_history (
 alter table public.hry_sync_accounts enable row level security;
 alter table public.hry_sync_records enable row level security;
 alter table public.hry_sync_history enable row level security;
-revoke all on public.hry_sync_accounts,public.hry_sync_records,public.hry_sync_history from anon,authenticated;
+revoke all on public.hry_sync_accounts,public.hry_sync_records,public.hry_sync_history from public,anon,authenticated;
 -- Все записи проходят через атомарную функцию; обхода проверки версий нет.
 create or replace function public.hry_sync_balances(p_owner uuid)
 returns table(bucket text, balance numeric)
