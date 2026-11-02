@@ -1,0 +1,1 @@
+{"id":"hryushki.example.sales","name":"Продажи по складам — пример","version":"1.0.0","apiVersion":1,"author":"Хрюшкины подушки","description":"Демонстрационный отчёт для проверки системы расширений. Не устанавливается автоматически.","assembly":"ExampleReport.dll","entryType":"SalesByWarehouse"}
