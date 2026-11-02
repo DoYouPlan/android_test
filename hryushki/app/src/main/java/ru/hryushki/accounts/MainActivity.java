@@ -6,227 +6,86 @@ import android.content.*;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.net.Uri;
+import android.text.*;
 import android.view.*;
 import android.widget.*;
 import org.json.*;
 import java.io.*;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.text.SimpleDateFormat;
+import java.text.*;
 import java.util.*;
 
 public class MainActivity extends Activity {
-    private static final int OPEN_DB = 101;
-    private static final int EXPORT_DB = 102;
-    private static final int GREEN = Color.rgb(47,107,79);
-    private static final int DARK = Color.rgb(36,52,43);
-    private static final int MINT = Color.rgb(234,245,238);
-
-    private LinearLayout body;
-    private TextView status;
-    private JSONObject db;
-    private Uri currentUri;
-
-    @Override public void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        buildShell();
-        loadDemoEmpty();
-        showOverview();
-    }
-
-    private void buildShell() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(MINT);
-
-        LinearLayout header = new LinearLayout(this);
-        header.setOrientation(LinearLayout.VERTICAL);
-        header.setPadding(dp(18), dp(18), dp(18), dp(14));
-        header.setBackgroundColor(GREEN);
-
-        TextView title = text("🐹  Хрюшкины подушки", 22, Color.WHITE, true);
-        TextView sub = text("Бухгалтерия • Android", 14, Color.rgb(230,245,235), false);
-        status = text("База не загружена", 12, Color.rgb(220,240,228), false);
-        status.setPadding(0, dp(6), 0, 0);
-        header.addView(title); header.addView(sub); header.addView(status);
-        root.addView(header);
-
-        HorizontalScrollView navScroll = new HorizontalScrollView(this);
-        navScroll.setHorizontalScrollBarEnabled(false);
-        LinearLayout nav = new LinearLayout(this);
-        nav.setPadding(dp(10),dp(8),dp(10),dp(8));
-        nav.setOrientation(LinearLayout.HORIZONTAL);
-        nav.setBackgroundColor(Color.WHITE);
-        nav.addView(navButton("Обзор", v->showOverview()));
-        nav.addView(navButton("Операции", v->showOperations()));
-        nav.addView(navButton("Склад", v->showStock()));
-        nav.addView(navButton("+ Операция", v->showAddOperation()));
-        nav.addView(navButton("Файл", v->showFileMenu()));
-        navScroll.addView(nav);
-        root.addView(navScroll);
-
-        ScrollView sv = new ScrollView(this);
-        body = new LinearLayout(this);
-        body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(14), dp(14), dp(14), dp(30));
-        sv.addView(body);
-        root.addView(sv, new LinearLayout.LayoutParams(-1,0,1));
-        setContentView(root);
-    }
-
-    private Button navButton(String s, View.OnClickListener l) {
-        Button b = new Button(this); b.setText(s); b.setTextSize(13); b.setAllCaps(false);
-        b.setTextColor(GREEN); b.setBackgroundColor(Color.TRANSPARENT); b.setOnClickListener(l);
-        b.setPadding(dp(10),0,dp(10),0); return b;
-    }
-
-    private Button primary(String s, View.OnClickListener l) {
-        Button b = new Button(this); b.setText(s); b.setAllCaps(false); b.setTextColor(Color.WHITE);
-        b.setTextSize(15); b.setBackgroundResource(R.drawable.button_bg);
-        b.setOnClickListener(l); b.setPadding(dp(14),dp(10),dp(14),dp(10));
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-1, dp(52)); p.setMargins(0,dp(7),0,dp(7)); b.setLayoutParams(p); return b;
-    }
-
-    private TextView text(String s, int sp, int color, boolean bold) {
-        TextView t = new TextView(this); t.setText(s); t.setTextSize(sp); t.setTextColor(color);
-        if (bold) t.setTypeface(Typeface.DEFAULT, Typeface.BOLD); return t;
-    }
-
-    private LinearLayout card(String title, String value, String note) {
-        LinearLayout c = new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setPadding(dp(16),dp(14),dp(16),dp(14));
-        c.setBackgroundResource(R.drawable.card_bg);
-        TextView a=text(title,13,DARK,true); TextView b=text(value,25,GREEN,true); TextView n=text(note,12,Color.DKGRAY,false);
-        b.setPadding(0,dp(5),0,dp(4)); c.addView(a); c.addView(b); c.addView(n);
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2); p.setMargins(0,0,0,dp(10)); c.setLayoutParams(p); return c;
-    }
-
-    private void clear(String heading) {
-        body.removeAllViews(); TextView h=text(heading,21,DARK,true); h.setPadding(0,0,0,dp(12)); body.addView(h);
-    }
-
-    private void loadDemoEmpty() {
-        try {
-            db=new JSONObject(); db.put("version",2); db.put("warehouses", new JSONArray(Arrays.asList("Дома","Зверёк Аморе")));
-            db.put("operations", new JSONArray()); db.put("products", new JSONArray()); db.put("materials", new JSONArray());
-        } catch(Exception ignored) {}
-    }
-
-    private JSONArray ops(){ return db.optJSONArray("operations")!=null?db.optJSONArray("operations"):new JSONArray(); }
-    private JSONArray products(){ return db.optJSONArray("products")!=null?db.optJSONArray("products"):new JSONArray(); }
-
-    private void showOverview() {
-        clear("Обзор");
-        double income=0, expense=0, partner=0, payouts=0; int saleCount=0;
-        JSONArray a=ops();
-        for(int i=0;i<a.length();i++){
-            JSONObject o=a.optJSONObject(i); if(o==null) continue; String type=o.optString("type"); double amount=o.optDouble("amount",0);
-            if(type.equals("Продажа")||type.equals("Поступление")){income+=amount; if(type.equals("Продажа")) saleCount++;}
-            if(type.equals("Расход")) expense+=amount;
-            if(type.equals("Продажа") && o.optString("warehouse").equals("Зверёк Аморе")) partner+=amount;
-            if(type.toLowerCase().contains("выплат") || (type.equals("Поступление") && o.optString("category").toLowerCase().contains("партн"))) payouts+=amount;
-        }
-        body.addView(card("Доходы", money(income), saleCount+" продаж в базе"));
-        body.addView(card("Расходы", money(expense), "Учтённые денежные расходы"));
-        body.addView(card("Результат", money(income-expense), "Доходы минус расходы"));
-        body.addView(card("Долг партнёра", money(partner-payouts), "Продажи «Зверёк Аморе» минус выплаты"));
-        body.addView(card("Операций", String.valueOf(a.length()), currentUri==null?"Загрузите базу из файла":"База загружена с телефона"));
-        body.addView(primary("Загрузить базу JSON", v->openDatabase()));
-    }
-
-    private void showOperations() {
-        clear("Операции"); JSONArray a=ops();
-        if(a.length()==0){ body.addView(text("Операций пока нет. Загрузите базу или добавьте первую запись.",14,Color.DKGRAY,false)); return; }
-        for(int i=a.length()-1;i>=0;i--){
-            JSONObject o=a.optJSONObject(i); if(o==null) continue;
-            LinearLayout c=new LinearLayout(this); c.setOrientation(LinearLayout.VERTICAL); c.setPadding(dp(14),dp(12),dp(14),dp(12)); c.setBackgroundResource(R.drawable.card_bg);
-            String line=o.optString("type")+" • "+o.optString("date");
-            String item=o.optString("item"); int qty=o.optInt("qty",0); double amount=o.optDouble("amount",0);
-            c.addView(text(line,13,GREEN,true)); c.addView(text(item+(qty!=0?" × "+qty:"")+ (amount!=0?"   "+money(amount):""),16,DARK,true));
-            c.addView(text(o.optString("warehouse")+ (o.optString("category").isEmpty()?"":" • "+o.optString("category")),12,Color.DKGRAY,false));
-            LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,dp(8));c.setLayoutParams(p);body.addView(c);
-        }
-    }
-
-    private void showStock() {
-        clear("Склад");
-        Map<String,Integer> home=new TreeMap<>(), partner=new TreeMap<>();
-        JSONArray a=ops();
-        for(int i=0;i<a.length();i++){
-            JSONObject o=a.optJSONObject(i); if(o==null) continue;
-            String type=o.optString("type"), item=o.optString("item"), wh=o.optString("warehouse"); int q=o.optInt("qty",0);
-            if(item.isEmpty()||q==0) continue;
-            if(type.equals("Передача партнёру")){ addQty(home,item,-q); addQty(partner,item,q); }
-            else if(type.equals("Продажа")){ addQty(wh.equals("Зверёк Аморе")?partner:home,item,-q); }
-            else if(type.equals("Производство")||type.equals("Корректировка склада")){ addQty(wh.equals("Зверёк Аморе")?partner:home,item,q); }
-        }
-        addStockSection("🏠 Дома",home); addStockSection("🤝 Зверёк Аморе",partner);
-    }
-
-    private void addQty(Map<String,Integer> m,String k,int q){ m.put(k,m.getOrDefault(k,0)+q); }
-    private void addStockSection(String name, Map<String,Integer> m){
-        TextView h=text(name,17,GREEN,true); h.setPadding(0,dp(8),0,dp(8)); body.addView(h);
-        if(m.isEmpty()){body.addView(text("Нет данных",13,Color.DKGRAY,false));return;}
-        for(Map.Entry<String,Integer> e:m.entrySet()){
-            LinearLayout row=new LinearLayout(this); row.setPadding(dp(14),dp(10),dp(14),dp(10));row.setBackgroundResource(R.drawable.card_bg);
-            TextView n=text(e.getKey(),14,DARK,false); TextView q=text(String.valueOf(e.getValue()),16,e.getValue()<0?Color.RED:GREEN,true);
-            row.addView(n,new LinearLayout.LayoutParams(0,-2,1));row.addView(q);LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,dp(6));row.setLayoutParams(p);body.addView(row);
-        }
-    }
-
-    private void showAddOperation(){
-        clear("Новая операция");
-        Spinner type=new Spinner(this); String[] types={"Продажа","Расход","Поступление","Производство","Передача партнёру","Корректировка склада","Выплата партнёра"}; type.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,types));
-        Spinner wh=new Spinner(this); wh.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,new String[]{"Дома","Зверёк Аморе"}));
-        Spinner item=new Spinner(this); List<String> names=new ArrayList<>(); JSONArray ps=products(); for(int i=0;i<ps.length();i++){JSONObject p=ps.optJSONObject(i); if(p!=null) names.add(p.optString("name"));} if(names.isEmpty()) names.add("Другое"); item.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,names));
-        EditText qty=input("Количество", "1"); qty.setInputType(2); EditText amount=input("Сумма, ₽",""); amount.setInputType(8194); EditText cat=input("Категория",""); EditText note=input("Примечание","");
-        body.addView(label("Тип операции"));body.addView(type);body.addView(label("Склад"));body.addView(wh);body.addView(label("Изделие / статья"));body.addView(item);body.addView(qty);body.addView(amount);body.addView(cat);body.addView(note);
-        body.addView(primary("Добавить и сохранить",v->{
-            try{
-                JSONObject o=new JSONObject(); o.put("id",nextId()); o.put("date",new SimpleDateFormat("dd.MM.yyyy",Locale.getDefault()).format(new Date())); o.put("type",type.getSelectedItem().toString()); o.put("warehouse",wh.getSelectedItem().toString()); o.put("item",item.getSelectedItem().toString());
-                o.put("qty",parseInt(qty.getText().toString(),1)); o.put("amount",parseDouble(amount.getText().toString())); o.put("category",cat.getText().toString().trim()); o.put("note",note.getText().toString().trim()); ops().put(o);
-                toast("Операция добавлена"); if(currentUri!=null) saveToUri(currentUri); showOverview();
-            }catch(Exception e){ toast("Не удалось добавить: "+e.getMessage()); }
-        }));
-    }
-
-    private TextView label(String s){TextView t=text(s,12,GREEN,true);t.setPadding(0,dp(8),0,0);return t;}
-    private EditText input(String hint,String val){EditText e=new EditText(this);e.setHint(hint);e.setText(val);e.setTextColor(DARK);e.setHintTextColor(Color.GRAY);e.setPadding(0,dp(10),0,dp(10));return e;}
-    private int nextId(){int max=0;JSONArray a=ops();for(int i=0;i<a.length();i++)max=Math.max(max,a.optJSONObject(i)!=null?a.optJSONObject(i).optInt("id",0):0);return max+1;}
-    private int parseInt(String s,int d){try{return Integer.parseInt(s.trim());}catch(Exception e){return d;}}
-    private double parseDouble(String s){try{return Double.parseDouble(s.trim().replace(',','.'));}catch(Exception e){return 0;}}
-
-    private void showFileMenu(){
-        clear("База данных");
-        body.addView(card("Текущая база", currentUri==null?"Не выбрана":"Подключена", currentUri==null?"Выберите hryushki_accounts_data.json":"Изменения можно сохранить в этот же файл"));
-        body.addView(primary("Загрузить JSON",v->openDatabase()));
-        body.addView(primary("Сохранить в текущий файл",v->{if(currentUri==null)toast("Сначала загрузите базу");else saveToUri(currentUri);}));
-        body.addView(primary("Экспортировать копию JSON",v->exportDatabase()));
-    }
-
-    private void openDatabase(){
-        Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("application/json");i.putExtra(Intent.EXTRA_MIME_TYPES,new String[]{"application/json","text/plain","application/octet-stream"});startActivityForResult(i,OPEN_DB);
-    }
-    private void exportDatabase(){Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("application/json");i.putExtra(Intent.EXTRA_TITLE,"hryushki_accounts_data.json");startActivityForResult(i,EXPORT_DB);}
-
-    @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){super.onActivityResult(requestCode,resultCode,data);if(resultCode!=RESULT_OK||data==null||data.getData()==null)return;Uri uri=data.getData();if(requestCode==OPEN_DB)loadFromUri(uri);else if(requestCode==EXPORT_DB)saveToUri(uri);}
-
-    private void loadFromUri(Uri uri){
-        try{
-            getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-        }catch(Exception ignored){}
-        try(InputStream in=getContentResolver().openInputStream(uri)){
-            byte[] buf=readAll(in); JSONObject parsed=new JSONObject(new String(buf,StandardCharsets.UTF_8));
-            if(parsed.optJSONArray("operations")==null) throw new JSONException("нет массива operations");
-            db=parsed; currentUri=uri; status.setText("База загружена • "+ops().length()+" операций"); toast("База загружена"); showOverview();
-        }catch(Exception e){toast("Ошибка базы: "+e.getMessage());}
-    }
-
-    private void saveToUri(Uri uri){
-        try(OutputStream out=getContentResolver().openOutputStream(uri,"wt")){
-            if(out==null)throw new IOException("Нет доступа к файлу");out.write(db.toString(2).getBytes(StandardCharsets.UTF_8));out.flush();status.setText("Сохранено • "+new SimpleDateFormat("HH:mm",Locale.getDefault()).format(new Date()));toast("База сохранена");
-        }catch(Exception e){toast("Не удалось сохранить: "+e.getMessage());}
-    }
-    private byte[] readAll(InputStream in)throws IOException{ByteArrayOutputStream b=new ByteArrayOutputStream();byte[] x=new byte[8192];int n;while((n=in.read(x))!=-1)b.write(x,0,n);return b.toByteArray();}
-    private String money(double v){return String.format(Locale.forLanguageTag("ru-RU"),"%,.0f ₽",v).replace('\u00A0',' ');}
-    private int dp(int v){return (int)(v*getResources().getDisplayMetrics().density+0.5f);}
-    private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_SHORT).show();}
+ static final int OPEN=101,EXPORT=102,CSV=103,RESTORE=104,RAW=105;
+ static final int GREEN=0xff2a5b42,DARK=0xff23342a,MINT=0xfff1f6ee,MUTED=0xff64766b,RED=0xffab453e;
+ DatabaseStore store;LinearLayout body,root;ScrollView scroll;TextView status;String page="Обзор",query="",from="",until="";boolean editing=false,restoringDraft=false;JSONObject formOriginal;String formKind="",formInitial;byte[] pendingExport;String pendingMime,pendingName;int pendingCode;
+ List<String[]> csv=new ArrayList<>();
+ interface Task{void run()throws Exception;}
+ void attempt(Task task){try{task.run();}catch(Exception e){error(e.getMessage()==null?e.toString():e.getMessage());}}
+ @Override public void onCreate(Bundle state){super.onCreate(state);try{store=new DatabaseStore(this);}catch(Exception e){error(e.getMessage());return;}if(state!=null){page=state.getString("page","Обзор");query=state.getString("query","");from=state.getString("from","");until=state.getString("until","");pendingCode=state.getInt("exportCode",0);pendingName=state.getString("exportName");pendingMime=state.getString("exportMime");String temp=state.getString("exportTemp");if(temp!=null)try(FileInputStream in=new FileInputStream(new File(getCacheDir(),temp))){pendingExport=DatabaseStore.read(in);}catch(Exception ignored){}}
+  buildShell();if(store.data==null)showRecovery();else if(state!=null&&!state.getString("formKind","").isEmpty()){
+   restoringDraft=true;attempt(()->{String old=state.getString("formOriginal");JSONObject original=old==null?null:new JSONObject(old);if(state.getString("formKind").equals("operation"))editOperation(original,state.getString("formInitial"));else editCatalog(state.getString("formKind").equals("material"),original);JSONArray values=new JSONArray(state.getString("draft","[]"));for(int i=0;i<values.length();i++){JSONObject d=values.getJSONObject(i);View v=body.getChildAt(d.getInt("index"));if(v instanceof EditText)((EditText)v).setText(d.optString("text"));else if(v instanceof Spinner)((Spinner)v).setSelection(d.optInt("selected"));else if(v instanceof CheckBox)((CheckBox)v).setChecked(d.optBoolean("checked"));}body.post(()->restoringDraft=false);});
+  }else navigate(page);
+ }
+ @Override protected void onSaveInstanceState(Bundle b){super.onSaveInstanceState(b);if(editing){try{b.putString("formKind",formKind);b.putString("formOriginal",formOriginal==null?null:formOriginal.toString());b.putString("formInitial",formInitial);JSONArray a=new JSONArray();for(int i=0;i<body.getChildCount();i++){View v=body.getChildAt(i);JSONObject d=new JSONObject();d.put("index",i);if(v instanceof EditText)d.put("text",((EditText)v).getText().toString());else if(v instanceof Spinner)d.put("selected",((Spinner)v).getSelectedItemPosition());else if(v instanceof CheckBox)d.put("checked",((CheckBox)v).isChecked());else continue;a.put(d);}b.putString("draft",a.toString());}catch(Exception ignored){}}b.putString("page",page);b.putString("query",query);b.putString("from",from);b.putString("until",until);if(pendingExport!=null){try{File f=new File(getCacheDir(),"pending_export");try(FileOutputStream out=new FileOutputStream(f)){out.write(pendingExport);}b.putString("exportTemp",f.getName());b.putInt("exportCode",pendingCode);b.putString("exportName",pendingName);b.putString("exportMime",pendingMime);}catch(Exception ignored){}}}
+ void buildShell(){root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(MINT);getWindow().setStatusBarColor(GREEN);getWindow().setNavigationBarColor(GREEN);
+  LinearLayout header=new LinearLayout(this);header.setOrientation(1);header.setPadding(dp(18),dp(16),dp(18),dp(13));header.setBackgroundColor(GREEN);
+  LinearLayout brand=new LinearLayout(this);brand.setGravity(Gravity.CENTER_VERTICAL);ImageView logo=new ImageView(this);logo.setImageResource(R.drawable.brand_mark);brand.addView(logo,new LinearLayout.LayoutParams(dp(42),dp(42)));TextView title=text("  Хрюшкины подушки",21,Color.WHITE,true);brand.addView(title);header.addView(brand);status=text("Бухгалтерия 2.0 · Android",12,0xffdaecde,false);status.setPadding(0,dp(7),0,0);header.addView(status);root.addView(header);
+  HorizontalScrollView hs=new HorizontalScrollView(this);hs.setHorizontalScrollBarEnabled(false);LinearLayout nav=new LinearLayout(this);nav.setBackgroundColor(Color.WHITE);String[] pages={"Обзор","Операции","Склад изделий","Товары и цены","Материалы","База и копии"};for(String p:pages){Button b=new Button(this);b.setText(p);b.setAllCaps(false);b.setTextSize(13);b.setTextColor(GREEN);b.setBackgroundColor(Color.TRANSPARENT);b.setOnClickListener(v->leave(()->navigate(p)));nav.addView(b);}hs.addView(nav);root.addView(hs);
+  scroll=new ScrollView(this);scroll.setFillViewport(true);body=new LinearLayout(this);body.setOrientation(1);body.setPadding(dp(16),dp(16),dp(16),dp(32));scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));setContentView(root);
+  if(android.os.Build.VERSION.SDK_INT>=35)root.setOnApplyWindowInsetsListener((v,insets)->{android.graphics.Insets x=insets.getInsets(WindowInsets.Type.systemBars());root.setPadding(x.left,x.top,x.right,x.bottom);return insets;});
+ }
+ void leave(Runnable action){if(editing)new AlertDialog.Builder(this).setTitle("Закрыть форму?").setMessage("Введённые изменения ещё не сохранены.").setPositiveButton("Закрыть",(d,w)->{editing=false;action.run();}).setNegativeButton("Продолжить ввод",null).show();else action.run();}
+ @Override public void onBackPressed(){if(editing)leave(()->navigate(page));else if(!page.equals("Обзор"))navigate("Обзор");else super.onBackPressed();}
+ void clear(String title){body.removeAllViews();csv=new ArrayList<>();TextView h=text(title,24,DARK,true);h.setPadding(0,0,0,dp(14));body.addView(h);scroll.scrollTo(0,0);}
+ void navigate(String p){if(store.data==null){showRecovery();return;}editing=false;page=p;attempt(()->{switch(p){case "Обзор":overview();break;case "Операции":operations();break;case "Склад изделий":stock();break;case "Товары и цены":catalog(false);break;case "Материалы":catalog(true);break;default:files();}status.setText("● Локальная база · "+Engine.rows(store.data,"operations").length()+" операций · сохраняется автоматически");});}
+ TextView text(String s,int size,int color,boolean bold){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);if(bold)t.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return t;}
+ Button button(String label,Task task){Button b=new Button(this);b.setText(label);b.setAllCaps(false);b.setTextSize(15);b.setTextColor(Color.WHITE);b.setBackgroundResource(R.drawable.button_bg);b.setPadding(dp(12),dp(8),dp(12),dp(8));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,dp(5),0,dp(5));b.setLayoutParams(p);b.setOnClickListener(v->attempt(task));return b;}
+ void note(String s){TextView t=text(s,13,MUTED,false);t.setPadding(0,dp(6),0,dp(12));body.addView(t);}
+ LinearLayout tile(String title,String value,String detail){LinearLayout c=new LinearLayout(this);c.setOrientation(1);c.setPadding(dp(16),dp(14),dp(16),dp(14));c.setBackgroundResource(R.drawable.card_bg);c.addView(text(title,13,MUTED,true));TextView val=text(value,21,GREEN,true);val.setPadding(0,dp(4),0,dp(5));c.addView(val);if(!detail.isEmpty())c.addView(text(detail,13,MUTED,false));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,dp(10));c.setLayoutParams(p);body.addView(c);return c;}
+ EditText field(String label,String value,boolean number){TextView l=text(label,13,GREEN,true);l.setPadding(0,dp(10),0,0);body.addView(l);EditText e=new EditText(this);e.setText(value);e.setTextColor(DARK);e.setTextSize(16);e.setSingleLine(true);if(number)e.setInputType(android.text.InputType.TYPE_CLASS_NUMBER|android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL|android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);body.addView(e,new LinearLayout.LayoutParams(-1,dp(52)));return e;}
+ AutoCompleteTextView autocomplete(String label,String value,List<String> choices){TextView l=text(label,13,GREEN,true);l.setPadding(0,dp(10),0,0);body.addView(l);AutoCompleteTextView e=new AutoCompleteTextView(this);e.setText(value);e.setTextColor(DARK);e.setSingleLine(true);e.setThreshold(0);e.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_dropdown_item_1line,choices));e.setOnClickListener(v->e.showDropDown());body.addView(e,new LinearLayout.LayoutParams(-1,dp(52)));return e;}
+ Spinner choice(String label,List<String> choices,String selected){body.addView(text(label,13,GREEN,true));Spinner s=new Spinner(this);List<String> all=new ArrayList<>(choices);if(!all.contains(selected)&&!selected.isEmpty())all.add(selected);s.setAdapter(new ArrayAdapter<>(this,android.R.layout.simple_spinner_dropdown_item,all));int i=all.indexOf(selected);if(i>=0)s.setSelection(i);body.addView(s,new LinearLayout.LayoutParams(-1,dp(52)));return s;}
+ String value(EditText e){return e.getText().toString().trim();}String selected(Spinner s){return s.getSelectedItem().toString();}
+ String num(BigDecimal n){return n.stripTrailingZeros().toPlainString();}String money(BigDecimal n){NumberFormat f=NumberFormat.getNumberInstance(new Locale("ru","RU"));f.setMinimumFractionDigits(2);f.setMaximumFractionDigits(2);return f.format(n)+" ₽";}
+ int dp(int v){return Math.round(v*getResources().getDisplayMetrics().density);}void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}void error(String s){new AlertDialog.Builder(this).setTitle("Проверьте данные").setMessage(s).setPositiveButton("Понятно",null).show();}
+ Long begin(){return from.isEmpty()?null:Engine.date(from);}Long end(){return until.isEmpty()?null:Engine.date(until);}String today(){return new SimpleDateFormat("dd.MM.yyyy",Locale.ROOT).format(new Date());}
+ boolean match(String...values){for(String s:values)if(s.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))return true;return query.isEmpty();}
+ boolean inPeriod(JSONObject o){long d=Engine.date(Engine.s(o,"date",""));return(begin()==null||d>=begin())&&(end()==null||d<=end());}
+ List<JSONObject> filtered(){List<JSONObject> a=new ArrayList<>();for(JSONObject o:Engine.list(Engine.rows(store.data,"operations")))if(inPeriod(o)&&match(o.toString(),currentSku(Engine.s(o,"item",""))))a.add(o);a.sort((x,y)->{int c=Long.compare(Engine.date(Engine.s(y,"date","")),Engine.date(Engine.s(x,"date","")));return c==0?Engine.n(y,"id").compareTo(Engine.n(x,"id")):c;});return a;}
+ String currentSku(String name){JSONObject p=Engine.find(store.data,"products",name);return p==null?"":Engine.s(p,"sku","");}
+ void filters(boolean search){body.addView(button(from.isEmpty()&&until.isEmpty()?"Период: за всё время":"Период: "+(from.isEmpty()?"начало":from)+" — "+(until.isEmpty()?"сегодня":until),()->periodDialog()));if(search){EditText q=field("Поиск по названию, артикулу или записи",query,false);body.addView(button("Найти",()->{query=value(q);navigate(page);}));} }
+ void periodDialog(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);l.setPadding(dp(20),0,dp(20),0);EditText a=new EditText(this),b=new EditText(this);a.setHint("С даты: ДД.ММ.ГГГГ");b.setHint("По дату: ДД.ММ.ГГГГ");a.setText(from);b.setText(until);l.addView(a);l.addView(b);AlertDialog dlg=new AlertDialog.Builder(this).setTitle("Период отчёта").setView(l).setPositiveButton("Применить",null).setNeutralButton("За всё время",(d,w)->{from="";until="";navigate(page);}).setNegativeButton("Отмена",null).create();dlg.setOnShowListener(v->dlg.getButton(-1).setOnClickListener(x->attempt(()->{String f=value(a),u=value(b);if(!f.isEmpty())Engine.date(f);if(!u.isEmpty())Engine.date(u);Engine.require(f.isEmpty()||u.isEmpty()||Engine.date(f)<=Engine.date(u),"Начало периода позже окончания");from=f;until=u;dlg.dismiss();navigate(page);})));dlg.show();}
+ void overview(){clear("Мастерская в цифрах");filters(false);Engine.Totals t=Engine.calculate(store.data,begin(),end());tile("ВЫРУЧКА",money(t.revenue),t.sales+" продаж за период");tile("УЧТЁННЫЕ РАСХОДЫ",money(t.expense),"Без закупок материалов");tile("РЕЗУЛЬТАТ",money(t.result()),"С учётом известной себестоимости");tile("ОЖИДАЕМ ОПЛАТУ",money(t.debt),"Накопительно на конец периода");note(t.unknown>0?"У "+t.unknown+" продаж не указана себестоимость. Результат предварительный.":"Себестоимость введённых продаж учтена.");tile("ДВИЖЕНИЕ ДЕНЕГ",money(t.cash),"За всё время до конца периода. Это не остаток на карте без начального баланса.");
+  for(Map.Entry<String,BigDecimal> e:t.debts.entrySet())if(e.getValue().signum()!=0)tile("Расчёты",e.getKey(),money(e.getValue()));for(String w:t.warnings)note("• "+w);body.addView(button("+ Новая операция",()->editOperation(null,"Продажа")));body.addView(text("Последние операции",18,DARK,true));List<JSONObject> a=filtered();for(int i=0;i<Math.min(5,a.size());i++)operationTile(a.get(i));
+ }
+ void operations(){clear("Операции");filters(true);body.addView(button("+ Новая операция",()->editOperation(null,"Продажа")));csv.add(new String[]{"№","Дата","Тип","Изделие","Артикул","Склад","Количество","Сумма","Комиссия","Оплачено","Себестоимость","Статус","Комментарий"});List<JSONObject> a=filtered();for(JSONObject o:a){operationTile(o);csv.add(new String[]{Engine.s(o,"id",""),Engine.s(o,"date",""),Engine.s(o,"type",""),Engine.s(o,"item",""),Engine.s(o,"sku",currentSku(Engine.s(o,"item",""))),Engine.s(o,"warehouse",""),Engine.s(o,"qty","0"),Engine.s(o,"amount","0"),Engine.s(o,"fee",""),Engine.s(o,"paid",""),Engine.s(o,"_cost",""),Engine.active(o)?"Проведено":"Отменено",Engine.s(o,"note","")});}if(a.isEmpty())note("Записей по выбранным условиям нет.");body.addView(button("Экспорт журнала CSV",()->exportCsv()));}
+ void operationTile(JSONObject o){String name=Engine.s(o,"item",""),sku=currentSku(name);String detail=Engine.s(o,"warehouse","")+" · "+Engine.s(o,"qty","0")+" шт. · "+money(Engine.n(o,"amount"));if(!sku.isEmpty())detail+="\nАртикул: "+sku;if(!Engine.s(o,"note","").isEmpty())detail+="\n"+Engine.s(o,"note","");if(!Engine.active(o))detail+="\nОТМЕНЕНА: "+Engine.s(o,"_voidReason","");LinearLayout c=tile("№"+Engine.s(o,"id","")+" · "+Engine.s(o,"date","")+" · "+Engine.s(o,"type",""),name,detail);c.setOnClickListener(v->operationActions(o));}
+ void operationActions(JSONObject o){List<String> actions=new ArrayList<>();if(Engine.active(o)){actions.add("Изменить");actions.add("Отменить запись");}actions.add("История изменений");new AlertDialog.Builder(this).setTitle("Операция №"+Engine.s(o,"id","")).setItems(actions.toArray(new String[0]),(d,w)->{switch(actions.get(w)){case "Изменить":attempt(()->editOperation(o,null));break;case "Отменить запись":reasonDialog(o);break;default:history(o.optLong("id"));}}).show();}
+ void reasonDialog(JSONObject o){EditText reason=new EditText(this);reason.setHint("Причина отмены");AlertDialog dlg=new AlertDialog.Builder(this).setTitle("Отменить операцию?").setMessage("Запись останется в журнале. Остатки и расчёты будут проверены.").setView(reason).setPositiveButton("Отменить запись",null).setNegativeButton("Назад",null).create();dlg.setOnShowListener(v->dlg.getButton(-1).setOnClickListener(x->attempt(()->{store.save(Engine.voidOperation(store.data,o.optLong("id"),value(reason)));dlg.dismiss();navigate(page);})));dlg.show();}
+ void history(long id){StringBuilder s=new StringBuilder();for(JSONObject e:Engine.list(Engine.rows(store.data,"_audit"))){JSONObject before=e.optJSONObject("before");if(before!=null&&before.optLong("id")==id)s.append(Engine.s(e,"at","")).append(" · ").append(Engine.s(e,"action","")).append("\n").append(before.toString()).append("\n\n");}if(s.length()==0)s.append("Изменений не было.");new AlertDialog.Builder(this).setTitle("История №"+id).setMessage(s.toString()).setPositiveButton("Закрыть",null).show();}
+ List<String> warehouses(){List<String> a=new ArrayList<>(Arrays.asList(Engine.HOME,Engine.PARTNER));JSONArray w=Engine.rows(store.data,"warehouses");for(int i=0;i<w.length();i++){String s=w.optString(i);if(!s.isEmpty()&&!a.contains(s))a.add(s);}return a;}
+ List<String> names(){Set<String> a=new TreeSet<>();for(String k:new String[]{"products","materials"})for(JSONObject p:Engine.list(Engine.rows(store.data,k)))a.add(Engine.s(p,"name",""));return new ArrayList<>(a);}
+ void stock(){clear("Склад изделий");filters(true);body.addView(button("Приход / корректировка",()->editOperation(null,"Корректировка склада")));body.addView(button("Передать партнёру",()->editOperation(null,"Передача партнёру")));Engine.Totals t=Engine.calculate(store.data,null,end());csv.add(new String[]{"Изделие","Артикул","Склад","Остаток"});for(Map.Entry<String,BigDecimal> e:t.stock.entrySet()){String[] k=e.getKey().split("\u001f",-1);if(k[0].equals(Engine.MATERIALS)||e.getValue().signum()==0||!match(k[0],k[1],currentSku(k[1])))continue;tile(k[0],k[1],"Артикул: "+currentSku(k[1])+"\nОстаток: "+num(e.getValue())+(e.getValue().signum()<0?" · нужно сверить":""));csv.add(new String[]{k[1],currentSku(k[1]),k[0],num(e.getValue())});}note("Остатки — на конец периода. Передача партнёру не создаёт выручку.");body.addView(button("Экспорт склада CSV",()->exportCsv()));}
+ void catalog(boolean material){clear(material?"Материалы":"Товары и цены");EditText q=field("Поиск по названию или артикулу",query,false);body.addView(button("Найти",()->{query=value(q);navigate(page);}));body.addView(button(material?"+ Материал":"+ Товар / вариант",()->editCatalog(material,null)));Engine.Totals t=Engine.calculate(store.data,null,null);csv.add(material?new String[]{"Материал","Единица","Начальный остаток","Текущий остаток","Цена"}:new String[]{"Название","Артикул","Модель","Ткань","Размер","Цена дома","Цена партнёру","Себестоимость"});for(JSONObject p:Engine.list(Engine.rows(store.data,material?"materials":"products"))){String name=Engine.s(p,"name","");if(!match(p.toString()))continue;String detail=material?"Начальный: "+Engine.s(p,"qty","0")+" · Текущий: "+num(t.stock.getOrDefault(Engine.key(Engine.MATERIALS,name),BigDecimal.ZERO))+" "+Engine.s(p,"unit","м")+"\nЦена: "+money(Engine.n(p,"price")):"Дома: "+money(Engine.n(p,"HomePrice"))+"\nПартнёру: "+money(Engine.n(p,"PartnerPrice"))+"\nСебестоимость: "+money(Engine.n(p,"Cost"))+"\n"+Engine.s(p,"fabric","")+" "+Engine.s(p,"size","");LinearLayout c=tile(material?"Материал":"Артикул: "+Engine.s(p,"sku","не указан"),name,detail);c.setOnClickListener(v->attempt(()->editCatalog(material,p)));csv.add(material?new String[]{name,Engine.s(p,"unit","м"),Engine.s(p,"qty","0"),num(t.stock.getOrDefault(Engine.key(Engine.MATERIALS,name),BigDecimal.ZERO)),Engine.s(p,"price","0")}:new String[]{name,Engine.s(p,"sku",""),Engine.s(p,"model",""),Engine.s(p,"fabric",""),Engine.s(p,"size",""),Engine.s(p,"HomePrice","0"),Engine.s(p,"PartnerPrice","0"),Engine.s(p,"Cost","0")});}if(material)body.addView(button("Закупка / расход материала",()->editOperation(null,"Покупка материалов")));note(material?"Начальный остаток вводится до операций закупки и расхода.":"Каждому сочетанию ткани и размера — отдельная карточка и артикул. Например: «Лежанка · зелёный флис», LZ-001. Изменение цены не требует нового артикула.");body.addView(button("Экспорт каталога CSV",()->exportCsv()));}
+ void editCatalog(boolean material,JSONObject original)throws Exception{editing=true;formKind=material?"material":"product";formOriginal=original;formInitial=null;clear(original==null?(material?"Новый материал":"Новый товар / вариант"):"Изменить карточку");JSONObject p=original==null?new JSONObject():Engine.copy(original);EditText name=field("Название (уникальное для варианта)",Engine.s(p,"name",""),false);EditText sku=material?null:field("Артикул, например LZ-001",Engine.s(p,"sku",""),false);EditText model=material?null:field("Модель, например Лежанка",Engine.s(p,"model",""),false);EditText fabric=material?null:field("Ткань / расцветка",Engine.s(p,"fabric",""),false);EditText size=material?null:field("Размер",Engine.s(p,"size",""),false);EditText unit=material?field("Единица измерения",Engine.s(p,"unit","м"),false):null;EditText qty=material?field("Начальный остаток",Engine.s(p,"qty","0"),true):null;EditText price=field(material?"Цена за единицу, ₽":"Цена дома, ₽",Engine.s(p,material?"price":"HomePrice","0"),true);EditText partner=material?null:field("Цена партнёру, ₽",Engine.s(p,"PartnerPrice","0"),true);EditText cost=material?null:field("Себестоимость единицы, ₽",Engine.s(p,"Cost","0"),true);
+  note("Новые цены и себестоимость не пересчитывают старые продажи. Название с операциями защищено от изменения; артикул можно дописать.");body.addView(button("Сохранить карточку",()->{p.put("name",value(name));if(material){p.put("unit",value(unit));p.put("qty",Engine.decimal(value(qty)));p.put("price",Engine.decimal(value(price)));}else{p.put("sku",value(sku));p.put("model",value(model));p.put("fabric",value(fabric));p.put("size",value(size));p.put("HomePrice",Engine.decimal(value(price)));p.put("PartnerPrice",Engine.decimal(value(partner)));p.put("Cost",Engine.decimal(value(cost)));}store.save(Engine.catalogChange(store.data,material,original==null?null:Engine.s(original,"name",""),p));editing=false;navigate(page);}));body.addView(button("Назад",()->leave(()->navigate(page))));}
+ void editOperation(JSONObject original,String initial)throws Exception{editing=true;formKind="operation";formOriginal=original;formInitial=initial;clear(original==null?"Новая операция":"Изменить операцию №"+Engine.s(original,"id",""));JSONObject o=original==null?new JSONObject():Engine.copy(original);Spinner type=choice("Что произошло",Arrays.asList(Engine.TYPES),initial==null?Engine.s(o,"type","Продажа"):initial);EditText date=field("Дата (ДД.ММ.ГГГГ; старые записи: Без даты)",Engine.s(o,"date",today()),false);Spinner wh=choice("Склад / партнёр",warehouses(),Engine.s(o,"warehouse",Engine.HOME));AutoCompleteTextView item=autocomplete("Изделие / материал / статья (введите название)",Engine.s(o,"item",""),names());TextView skuHint=text("",13,MUTED,false);body.addView(skuHint);EditText qty=field("Количество",Engine.s(o,"qty","1"),true);EditText amount=field("Общая сумма за всё количество, ₽",Engine.s(o,"amount","0"),true);EditText fee=field("Комиссия по продаже, ₽",Engine.s(o,"fee","0"),true);BigDecimal defaultPaid=Engine.s(o,"warehouse",Engine.HOME).equals(Engine.HOME)?Engine.n(o,"amount").subtract(Engine.n(o,"fee")):BigDecimal.ZERO;EditText paid=field("Фактически получено по продаже, ₽",Engine.s(o,"paid",num(defaultPaid)),true);EditText who=field("Покупатель / партнёр, который должен оплатить",Engine.s(o,"counterparty",""),false);CheckBox known=new CheckBox(this);known.setText("Себестоимость этой продажи известна");known.setChecked(o.has("_cost"));known.setTextColor(DARK);body.addView(known);EditText cost=field("Себестоимость всего проданного количества, ₽",Engine.s(o,"_cost","0"),true);EditText cat=field("Категория / канал",Engine.s(o,"category",""),false);EditText comment=field("Комментарий / номер заказа",Engine.s(o,"note",""),false);
+  Runnable visibility=()->{boolean sale=selected(type).equals("Продажа");for(View v:new View[]{fee,paid,known})v.setEnabled(sale);cost.setEnabled(sale&&known.isChecked());who.setEnabled(sale||selected(type).equals("Выплата партнёра")||selected(type).equals("Поступление"));};known.setOnCheckedChangeListener((v,b)->visibility.run());
+  Runnable suggest=()->{JSONObject p=Engine.find(store.data,"products",value(item));skuHint.setText(p==null?"Выберите существующее название, чтобы подставить цену":"Артикул: "+Engine.s(p,"sku","не указан"));if(original!=null||restoringDraft)return;try{if(selected(type).equals("Продажа")){BigDecimal q=Engine.decimal(value(qty));if(p!=null){BigDecimal a=Engine.n(p,selected(wh).equals(Engine.HOME)?"HomePrice":"PartnerPrice").multiply(q);amount.setText(num(a));known.setChecked(Engine.n(p,"Cost").signum()>0);cost.setText(num(Engine.n(p,"Cost").multiply(q)));}paid.setText(selected(wh).equals(Engine.HOME)?num(Engine.decimal(value(amount)).subtract(Engine.decimal(value(fee))).max(BigDecimal.ZERO)):"0");}}catch(Exception ignored){}visibility.run();};
+  item.setOnItemClickListener((a,v,pos,id)->suggest.run());qty.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int st,int before,int count){suggest.run();}public void afterTextChanged(Editable e){}});
+  AdapterView.OnItemSelectedListener listener=new AdapterView.OnItemSelectedListener(){public void onItemSelected(AdapterView<?> a,View v,int pos,long id){visibility.run();suggest.run();}public void onNothingSelected(AdapterView<?> a){}};type.setOnItemSelectedListener(listener);wh.setOnItemSelectedListener(listener);
+  body.addView(button("Подставить цену и оплату из карточки",()->{Engine.require(original==null,"При редактировании суммы меняются вручную, чтобы сохранить исторические цены");suggest.run();}));note("Продажа: сумма до комиссии. Оплата уменьшает долг. Выплата партнёра погашает долг без повторной выручки. Закупки материалов учитываются отдельно от себестоимости продажи. Проверяется остаток на дату операции.");
+  body.addView(button("Сохранить операцию",()->{String t=selected(type);o.put("date",value(date));o.put("type",t);o.put("warehouse",selected(wh));o.put("item",value(item));o.put("qty",Engine.decimal(value(qty)));o.put("amount",Engine.decimal(value(amount)));o.put("category",value(cat));o.put("note",value(comment));String counterparty=value(who);if(t.equals("Продажа")){o.put("fee",Engine.decimal(value(fee)));o.put("paid",Engine.decimal(value(paid)));o.put("counterparty",counterparty);if(known.isChecked())o.put("_cost",Engine.decimal(value(cost)));else o.remove("_cost");}else{o.remove("fee");o.remove("paid");o.remove("_cost");o.put("counterparty",counterparty.isEmpty()?selected(wh):counterparty);}String sku=currentSku(value(item));if(!sku.isEmpty())o.put("sku",sku);else o.remove("sku");Engine.validateOperation(store.data,o);if(t.equals("Продажа")&&counterparty.isEmpty())o.put("counterparty",selected(wh));store.save(Engine.operationChange(store.data,o,original==null?0:original.optLong("id")));editing=false;navigate(page);toast("Операция сохранена");}));body.addView(button("Назад",()->leave(()->navigate(page))));visibility.run();}
+ void files(){clear("База и копии");tile("СОХРАНЕНИЕ", "База на устройстве","Автоматически сохраняется после каждого изменения и открывается при перезапуске приложения.");note("Импорт создаёт рабочую копию внутри приложения. Чтобы перенести изменения на ПК, экспортируйте JSON. При импорте другого файла текущая база будет заменена после подтверждения и резервного копирования.");body.addView(button("Импортировать JSON с компьютера",()->pick(OPEN)));body.addView(button("Экспортировать полную базу JSON",()->startExport(EXPORT,"application/json","hryushki_accounts_"+System.currentTimeMillis()+".json",DatabaseStore.bytes(store.data))));
+  if(!store.document().isEmpty())body.addView(button("Записать изменения в исходный JSON",()->new AlertDialog.Builder(this).setTitle("Сохранить во внешний файл?").setMessage("Внешний файл будет обновлён, если он не изменялся после импорта. Локальная база уже сохранена.").setPositiveButton("Сохранить",(d,w)->attempt(()->{store.exportCurrent();toast("Внешний файл обновлён");})).setNegativeButton("Отмена",null).show()));
+  body.addView(button("Создать внутреннюю резервную копию",()->{store.backup();toast("Копия создана");}));body.addView(button("Восстановить внутреннюю копию",()->backupDialog()));body.addView(button("Восстановить из JSON-копии",()->pick(RESTORE)));note("Хранятся последние 30 автоматических копий. Полная выгрузка сохраняет отменённые записи, историю правок, артикулы и дополнительные поля ПК-версии. Для Android 2.0 используйте полный JSON, а не экспорт «для Android 1.0».");note("Версия 2.0 · все 13 типов операций ПК 3.0, товары, материалы, цены, склады, редактирование и отмена, история, поиск, периоды и CSV. Плагины не подключаются. Это управленческий учёт. Синхронизации через интернет нет.");}
+ void backupDialog(){File[] files=store.listBackups();if(files.length==0){toast("Копий пока нет");return;}String[] labels=new String[files.length];for(int i=0;i<files.length;i++)labels[i]=new SimpleDateFormat("dd.MM.yyyy HH:mm:ss",Locale.ROOT).format(new Date(files[i].lastModified()))+" · "+files[i].getName();new AlertDialog.Builder(this).setTitle("Выберите копию").setItems(labels,(d,w)->new AlertDialog.Builder(this).setTitle("Восстановить копию?").setMessage("Текущая база будет заменена. Перед этим создаётся резервная копия.").setPositiveButton("Восстановить",(a,b)->attempt(()->{store.restore(files[w]);navigate("Обзор");})).setNegativeButton("Отмена",null).show()).show();}
+ void showRecovery(){clear("Восстановление базы");note(store.loadError);note("Сохранённый файл оставлен без изменений. Можно выгрузить его для проверки или открыть резервную копию.");body.addView(button("Выгрузить сохранённый файл",()->startExport(RAW,"application/json","accounts_recovery.json",store.rawSaved())));body.addView(button("Импортировать исправленную базу",()->pick(RESTORE)));body.addView(button("Внутренние резервные копии",()->backupDialog()));}
+ void pick(int code){Intent i=new Intent(Intent.ACTION_OPEN_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType("*/*");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_WRITE_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);startActivityForResult(i,code);}
+ void startExport(int code,String mime,String name,byte[] content){pendingExport=content;pendingCode=code;pendingMime=mime;pendingName=name;Intent i=new Intent(Intent.ACTION_CREATE_DOCUMENT);i.addCategory(Intent.CATEGORY_OPENABLE);i.setType(mime);i.putExtra(Intent.EXTRA_TITLE,name);startActivityForResult(i,code);}
+ @Override protected void onActivityResult(int request,int result,Intent data){super.onActivityResult(request,result,data);if(result!=RESULT_OK||data==null||data.getData()==null)return;Uri uri=data.getData();if(request==OPEN||request==RESTORE){attempt(()->{JSONObject preview=store.readDocument(uri);new AlertDialog.Builder(this).setTitle(request==RESTORE?"Восстановить базу?":"Импортировать базу?").setMessage("В файле "+Engine.rows(preview,"operations").length()+" операций. Текущая рабочая база будет заменена, её копия сохранится.").setPositiveButton("Открыть",(d,w)->attempt(()->{store.importDocument(uri,data.getFlags());editing=false;navigate("Обзор");toast("База импортирована и сохранена на устройстве");})).setNegativeButton("Отмена",null).show();});}else if(request==EXPORT||request==CSV||request==RAW){attempt(()->{Engine.require(pendingExport!=null,"Повторите экспорт: содержимое не было подготовлено");if(uri.toString().equals(store.document()))throw new IOException("Это исходный файл. Для него используйте «Записать изменения в исходный JSON» или выберите другое имя");store.export(uri,pendingExport);pendingExport=null;toast("Файл сохранён");});}}
+ String escapeCsv(String s){if(s==null)s="";if(!s.isEmpty()&&"=+-@\t\r\n".indexOf(s.charAt(0))>=0)s="'"+s;return "\""+s.replace("\"","\"\"")+"\"";}
+ void exportCsv(){StringBuilder b=new StringBuilder("\ufeff");for(String[] row:csv){for(int i=0;i<row.length;i++){if(i>0)b.append(';');b.append(escapeCsv(row[i]));}b.append("\r\n");}startExport(CSV,"text/csv","hryushki_"+System.currentTimeMillis()+".csv",b.toString().getBytes(StandardCharsets.UTF_8));}
 }
